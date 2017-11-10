@@ -54,10 +54,10 @@ origin<-origin[is.na(suspension_year) | (suspension_year < creation_year)];
 ##################################### TENURE ##################################################
 
 # Get tenure
-origin$tenure<-year(Sys.Date())-origin$creation_year;
+origin$tenure<-max(dat$year)-origin$creation_year;
 
 # Remove too recent constitutions
-origin<-origin[tenure > 25]
+origin<-origin[tenure > 21]
 
 # Sort by tenure
 origin<-origin[order(tenure)];
@@ -83,7 +83,7 @@ amendments<-amendments[,c("country","n_amendments"),with=F]
 
 # Get amendments per year
 amendments<-merge(amendments,origin,by="country");
-amendments$amendments_per_year<-amendments$n_amendments/amendments$tenure;
+amendments$amendments_per_year<-round(amendments$n_amendments/amendments$tenure,4);
 
 # Sort by amendments per year
 amendments<-amendments[order(-amendments_per_year)];
@@ -185,10 +185,10 @@ origin<-origin[is.na(suspension_year) | (suspension_year < creation_year)];
 ##################################### TENURE ##################################################
 
 # Get tenure
-origin$tenure<-year(Sys.Date())-origin$creation_year;
+origin$tenure<-max(dat$year)-origin$creation_year;
 
 # Remove too recent constitutions
-origin<-origin[tenure <= 44 & tenure >= 34]
+origin<-origin[tenure <= 40 & tenure >= 30]
 
 # Sort by tenure
 origin<-origin[order(tenure)];
@@ -316,7 +316,7 @@ origin<-origin[is.na(suspension_year) | (suspension_year < creation_year)];
 ##################################### TENURE ##################################################
 
 # Get tenure
-origin$tenure<-year(Sys.Date())-origin$creation_year;
+origin$tenure<-max(dat$year)-origin$creation_year;
 
 # Merge with difficulty
 difficulty<-data.table(read.dta13(file.path(input_path,"ccpcce","ADData.dta")))
@@ -327,7 +327,8 @@ difficulty<-difficulty[year == max_year]
 difficulty<-difficulty[,c("country","ad_ak"),with=F]
 
 origin<-merge(origin,difficulty,by="country")
-
+origin<-origin[ad_ak == origin[country=="Spain"]$ad_ak]
+origin<-origin[tenure > 21]
 
 # Sort by tenure
 origin<-origin[order(tenure)];
@@ -449,7 +450,7 @@ origin<-origin[is.na(suspension_year) | (suspension_year < creation_year)];
 ##################################### TENURE ##################################################
 
 # Get tenure
-origin$tenure<-year(Sys.Date())-origin$creation_year;
+origin$tenure<-max(dat$year)-origin$creation_year;
 
 # Keep only same difficulty constitutions
 difficulty<-data.table(read.dta13(file.path(input_path,"ccpcce","ADData.dta")))
@@ -493,7 +494,7 @@ amendments$amendments_per_year<-amendments$n_amendments/amendments$tenure;
 amendments<-amendments[order(-amendments_per_year)];
 
 # Get mean amendments_per_year by nivel of amendment difficulty
-mean_by_diff<-amendments[,mean(amendments_per_year),by="ad_ak"]
+mean_by_diff<-amendments[,list(amendments_per_year=mean(amendments_per_year)),by="ad_ak"]
 mean_by_diff<-mean_by_diff[order(ad_ak)]
 mean_by_diff
 
@@ -512,7 +513,7 @@ europe_amendments<-rbind(europe_amendments,bad[country=="german federal republic
 europe_amendments<-rbind(europe_amendments,bad[country=="bosnia-herzegovina"])
 
 # Get mean amendments_per_year by nivel of amendment difficulty
-mean_by_diff<-europe_amendments[,mean(amendments_per_year),by="ad_ak"]
+mean_by_diff<-europe_amendments[,list(amendments_per_year=mean(amendments_per_year)),by="ad_ak"]
 mean_by_diff<-mean_by_diff[order(ad_ak)]
 mean_by_diff
 
@@ -524,7 +525,7 @@ ue_amendments<-amendments[country %in% ue_countries]
 bad<-europe_amendments[!(country %in% ue_countries)]
 
 # Get mean amendments_per_year by nivel of amendment difficulty
-mean_by_diff<-ue_amendments[,mean(amendments_per_year),by="ad_ak"]
+mean_by_diff<-ue_amendments[,list(amendments_per_year=mean(amendments_per_year)),by="ad_ak"]
 mean_by_diff<-mean_by_diff[order(ad_ak)]
 mean_by_diff
 
@@ -536,28 +537,13 @@ X<-ue_amendments[,c("ad_ak","amendments_per_year"),with=F];
 X<-X[ad_ak <= 6]
 setnames(X,"amendments_per_year","y")
 
-# Split into train and test
-train_index<-sample(1:nrow(X),0.8*nrow(X))
-test_index<-setdiff(1:nrow(X),train_index);
-X_train<-X[train_index,]
-X_test<-X[test_index,]
-y_train<-X$y[train_index]
-y_test<-X$y[test_index]
-
-# Train model using train data
-model <- lm(y ~ .,data=X_train)
-null_model <- lm(y ~ 1,data=X_train)
-
-# Predict over test set
-predictions<-predict(model,newdata = X_test)
-null_predictions<-predict(null_model,newdata = X_test)
-
 # Compute model mse
 mse<-mean((predictions-y_test)^2)
 null_mse<-mean((null_predictions-y_test)^2)
 
 # Check R-squared
 model <- lm(y ~ .,data=X)
-null_model <- lm(y ~ 1,data=X)
+X$ad_ak<-rnorm(nrow(X),mean = 0,sd = 10)
+random_model <- lm(y ~.,data=X)
 summary(model)$r.squared
-summary(null_model)$r.squared
+summary(random_model)$r.squared
